@@ -8,8 +8,7 @@ const nextConfig = {
     ],
     unoptimized: true
   },
-  trailingSlash: true,
-  output: 'export'
+  trailingSlash: true
 }
 
 module.exports = nextConfig

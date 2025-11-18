@@ -4,86 +4,72 @@ import React, { useMemo, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useApp } from '@/context/AppContext';
 import ProductCard from '@/components/Product/ProductCard';
-import ProductFilters from '@/components/Product/ProductFilters';
 import { 
-  useGetProductsQuery, 
-  useGetProductsByCategoryQuery 
+  useGetCategoriesQuery,
+  useGetProductsByCategoryQuery,
 } from '@/store/apiSlice';
-import { products as staticProducts } from '@/data/products';
 
 export default function ProductsPage() {
   const { state, dispatch } = useApp();
   const searchParams = useSearchParams();
-  const categoryFromUrl = searchParams.get('category');
+  // Accept both ?catId= and ?category=
+  const categoryFromUrl = searchParams.get('catId') || searchParams.get('category');
+  const effectiveCategory = categoryFromUrl || state.selectedCategory || '';
 
-  const shouldFetchByCategory = state.selectedCategory && state.selectedCategory !== 'all';
-
-  // 🔥 Fix: pass object instead of raw string
-  const { data: allProductsData = [], isLoading: isLoadingAll, isError: isErrorAll } =
-    useGetProductsQuery(undefined, { skip: shouldFetchByCategory });
-
-  const { data: categoryProductsData = [], isLoading: isLoadingCategory, isError: isErrorCategory } =
-    useGetProductsByCategoryQuery(
-      { categoryId: Number(state.selectedCategory), page: 1, limit: 48 }, // ✅ fixed
-      { skip: !shouldFetchByCategory }
-    );
-
-  const productsData = shouldFetchByCategory ? categoryProductsData : allProductsData;
-  const isLoading = shouldFetchByCategory ? isLoadingCategory : isLoadingAll;
-  const isError = shouldFetchByCategory ? isErrorCategory : isErrorAll;
-
+  // Sync context, but do not block rendering
   useEffect(() => {
     if (categoryFromUrl && categoryFromUrl !== state.selectedCategory) {
       dispatch({ type: 'SET_CATEGORY', payload: categoryFromUrl });
     }
   }, [categoryFromUrl, state.selectedCategory, dispatch]);
 
+  const { data: categoriesData = [], isLoading: isLoadingCats } = useGetCategoriesQuery();
+
+  const slugify = (val?: string) => (val || '')
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, 'and')
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-');
+
+  // Resolve category to numeric ID using API data only (avoids wrong hardcoded ids)
+  const apiCategoryId = useMemo(() => {
+    if (!effectiveCategory) return undefined;
+    const sel = String(effectiveCategory);
+    if (/^\d+$/.test(sel)) return Number(sel);
+    const match = (categoriesData as any[])?.find((c) => {
+      const cid = c?.id?.toString?.();
+      const name = c?.name || c?.title;
+      return cid === sel || slugify(name) === slugify(sel);
+    });
+    return match?.id ? Number(match.id) : undefined;
+  }, [effectiveCategory, categoriesData]);
+
+  // If we have a non-numeric category but categories not loaded yet, keep showing loader until we can resolve ID
+  const shouldSkip = !effectiveCategory || (isLoadingCats && !/^\d+$/.test(String(effectiveCategory)) && !apiCategoryId);
+
+  const { data: productsData = [], isLoading, isError } = useGetProductsByCategoryQuery(
+    { categoryId: Number(apiCategoryId), page: 1, limit: 48 },
+    { skip: shouldSkip || apiCategoryId === undefined }
+  );
+
   const products = useMemo(() => {
-    const dataSource = (!productsData || productsData.length === 0) ? staticProducts : productsData;
-
-    return Array.isArray(dataSource)
-      ? dataSource.map(item => ({
-          id: item.id?.toString() || item._id?.toString() || Math.random().toString(),
-          name: item.name || item.title || 'Product',
-          image: item.imgs?.[0]?.img || item.image || '/placeholder.jpg',
-          price: item.price || 0,
-          originalPrice: item.originalPrice || item.mrp,
-          weight: item.weight || '1kg',
-          category: item.category || 'fish',
-          categoryId: item.categoryId?.toString() || item.category_id?.toString() || item.category,
-          description: item.description || '',
-          inStock: item.inStock !== false,
-          discount: item.discount || item.discountPercentage || 0,
-        }))
-      : [];
+    if (!Array.isArray(productsData)) return [];
+    return productsData.map((item: any) => ({
+      id: item.id?.toString() || item._id?.toString() || Math.random().toString(),
+      name: item.name || item.title || 'Product',
+      image: item.imgs?.[0]?.img || item.image || '/placeholder.jpg',
+      price: item.off_price || item.price || 0,
+      originalPrice: item.price || item.mrp || item.originalPrice,
+      weight: item.weight || '1kg',
+      category: item.category || 'fish',
+      categoryId: item.categoryId?.toString() || item.category_id?.toString() || item.category,
+      description: item.description || '',
+      inStock: item.stock_status !== false && item.inStock !== false,
+      discount: item.discount || (item.price && item.off_price ? Math.round(((item.price - item.off_price) / item.price) * 100) : 0),
+    }));
   }, [productsData]);
-
-  const filteredProducts = useMemo(() => {
-    if (!products || products.length === 0) return [];
-
-    let filtered = products;
-
-    if (state.selectedCategory && state.selectedCategory !== 'all') {
-      filtered = filtered.filter(product =>
-        Array.isArray(product.categoryId)
-          ? product.categoryId.includes(state.selectedCategory)
-          : product.categoryId === state.selectedCategory || product.category === state.selectedCategory
-      );
-    }
-
-    if (state.searchQuery) {
-      filtered = filtered.filter(
-        product =>
-          product.name.toLowerCase().includes(state.searchQuery.toLowerCase()) ||
-          product.description?.toLowerCase().includes(state.searchQuery.toLowerCase())
-      );
-    }
-
-    return filtered;
-  }, [products, state.selectedCategory, state.searchQuery]);
-
-  if (isLoading) return <div className="p-6 text-center">Loading products...</div>;
-  if (isError) return <div className="p-6 text-center text-red-500">Failed to load products</div>;
 
   return (
     <div className="pb-20 md:pb-0">
@@ -92,149 +78,35 @@ export default function ProductsPage() {
           Fresh Products
         </h1>
       </div>
-
-      {!state.searchQuery && <ProductFilters />}
-
       <div className="px-4">
-        {filteredProducts.length > 0 ? (
+        {(!effectiveCategory || shouldSkip) ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="w-full h-48 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            ))}
+          </div>
+        ) : isLoading ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="w-full h-48 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse" />
+            ))}
+          </div>
+        ) : isError ? (
+          <div className="p-6 text-center text-red-500">Failed to load products</div>
+        ) : products.length > 0 ? (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 justify-items-center">
-            {filteredProducts.map(product => (
-              <ProductCard key={product.id} product={product} />
+            {products.map((p) => (
+              <ProductCard key={p.id} product={p} />
             ))}
           </div>
         ) : (
           <div className="text-center py-12">
             <div className="text-6xl mb-4">🔍</div>
-            <h3 className={`text-xl font-semibold mb-2 ${state.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
-              No products found
-            </h3>
-            <p className={`${state.theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
-              Try adjusting your search or filter criteria
-            </p>
+            <h3 className={`text-xl font-semibold mb-2 ${state.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>No products found</h3>
+            <p className={`${state.theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>Try another category.</p>
           </div>
         )}
       </div>
     </div>
   );
 }
-
-
-
-// 'use client';
-
-// import React, { useMemo } from 'react';
-// import { Search, Package, AlertCircle } from 'lucide-react';
-// import { useApp } from '@/context/AppContext';
-// import { useGetProductsQuery } from '@/store/apiSlice';
-// import ProductCard from '@/components/Product/ProductCard';
-// import ProductFilters from '@/components/Product/ProductFilters';
-
-// export default function ProductsPage() {
-//   const { state } = useApp();
-//   const { data: products = [], error, isLoading } = useGetProductsQuery();
-
-//   // ✅ Apply filters/search only on loaded products
-//   const filteredProducts = useMemo(() => {
-//     let filtered = products;
-
-//     if (state.selectedCategory !== 'all') {
-//       filtered = filtered.filter(
-//         (product) => product.category === state.selectedCategory
-//       );
-//     }
-
-//     if (state.searchQuery) {
-//       filtered = filtered.filter(
-//         (product) =>
-//           product.name
-//             .toLowerCase()
-//             .includes(state.searchQuery.toLowerCase()) ||
-//           product.description
-//             .toLowerCase()
-//             .includes(state.searchQuery.toLowerCase())
-//       );
-//     }
-
-//     return filtered;
-//   }, [products, state.selectedCategory, state.searchQuery]);
-
-//   const isSearchActive = state.searchQuery.trim().length > 0;
-
-//   return (
-//     <div className="pb-20 md:pb-0">
-//       {/* ✅ Loading & Error states */}
-//       {isLoading && (
-//         <p className="text-center text-gray-500">Loading products...</p>
-//       )}
-//       {error && (
-//         <p className="text-center text-red-500">
-//           Failed to load products. Please try again.
-//         </p>
-//       )}
-
-//       {/* ✅ Header */}
-//       {!isSearchActive ? (
-//         <div className="px-4 py-6">
-//           <h1
-//             className={`text-2xl font-bold mb-6 ${
-//               state.theme === 'dark' ? 'text-white' : 'text-gray-900'
-//             }`}
-//           >
-//             Fresh Products
-//           </h1>
-//         </div>
-//       ) : (
-//         <div className="px-4 py-6 flex items-center space-x-3">
-//           <Search
-//             className={`w-6 h-6 ${
-//               state.theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-//             }`}
-//           />
-//           <h1
-//             className={`text-2xl font-bold ${
-//               state.theme === 'dark' ? 'text-white' : 'text-gray-900'
-//             }`}
-//           >
-//             Search Results
-//           </h1>
-//         </div>
-//       )}
-
-//       {!isSearchActive && <ProductFilters />}
-
-//       {/* ✅ Product Grid */}
-//       <div className="px-4">
-//         {filteredProducts.length > 0 ? (
-//           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 justify-items-center">
-//             {filteredProducts.map((product: any) => (
-//               <ProductCard key={product.id} product={product} />
-//             ))}
-//           </div>
-//         ) : (
-//           !isLoading &&
-//           !error && (
-//             <div className="text-center py-12">
-//               <div className="text-6xl mb-4">🔍</div>
-//               <h3
-//                 className={`text-xl font-semibold mb-2 ${
-//                   state.theme === 'dark' ? 'text-white' : 'text-gray-900'
-//                 }`}
-//               >
-//                 No products found
-//               </h3>
-//               <p
-//                 className={`${
-//                   state.theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
-//                 }`}
-//               >
-//                 Try adjusting your search or filter criteria
-//               </p>
-//             </div>
-//           )
-//         )}
-//       </div>
-//     </div>
-//   );
-// }
-
-

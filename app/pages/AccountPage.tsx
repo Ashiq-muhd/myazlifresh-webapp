@@ -19,6 +19,7 @@ import { useApp } from '../context/AppContext';
 import Link from 'next/link';
 import { useGetWalletTransactionsQuery } from '../store/apiSlice';
 import { WalletTransaction } from '../types';
+import { clearToken } from '@/lib/auth';
 
 
 export default function AccountPage() {
@@ -88,6 +89,18 @@ export default function AccountPage() {
       path: '/refer'
     }
   ];
+
+  const handleLogout = () => {
+    try {
+      clearToken(); // removes authToken, apiKey, api-key, userToken and cookies
+      dispatch({ type: 'SET_USER', payload: null });
+      dispatch({ type: 'CLEAR_CART' });
+      router.push('/');
+      router.refresh();
+    } catch (e) {
+      console.error('Logout failed', e);
+    }
+  };
 
   return (
     <div className={`min-h-screen ${state.theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'} pb-20 md:pb-0`}>
@@ -226,8 +239,8 @@ export default function AccountPage() {
           <h3 className={`text-lg font-bold mb-4 ${state.theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
             Feedback & Informations
           </h3>
-          
           <div className="space-y-3">
+            {/* About */}
             <button className={`w-full flex items-center justify-between p-4 ${state.theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} rounded-lg transition-colors`}>
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
@@ -239,7 +252,7 @@ export default function AccountPage() {
               </div>
               <span className={`text-2xl ${state.theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`}>›</span>
             </button>
-
+            {/* Rate Us */}
             <button className={`w-full flex items-center justify-between p-4 ${state.theme === 'dark' ? 'bg-gray-800 hover:bg-gray-700' : 'bg-white hover:bg-gray-50'} rounded-lg transition-colors`}>
               <div className="flex items-center space-x-3">
                 <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
@@ -250,6 +263,14 @@ export default function AccountPage() {
                 </span>
               </div>
               <span className={`text-2xl ${state.theme === 'dark' ? 'text-gray-400' : 'text-gray-400'}`}>›</span>
+            </button>
+            {/* Logout below Rate Us */}
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-between p-4 bg-red-600 hover:bg-red-700 rounded-lg transition-colors text-white font-semibold"
+            >
+              <span>Logout</span>
+              <span className="text-xl">›</span>
             </button>
           </div>
         </div>

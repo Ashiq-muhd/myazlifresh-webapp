@@ -18,22 +18,56 @@ export default function SpecialOffers() {
     return <p className="px-4 text-red-500">Failed to load offers.</p>;
   }
 
-  // Transform API data to match ProductCard expected structure
+  // Normalize API items to match ProductCard props exactly, avoiding NaN/invalid values
+  const normalize = (item: any) => {
+    const id = (item.id ?? item._id)?.toString();
+
+    const rawName = item.name ?? item.title ?? item.product_name;
+    const name = typeof rawName === 'string' && rawName.trim().length > 0 ? rawName : 'Product';
+
+    const image = item?.imgs?.[0]?.img || item?.image || '/placeholder.jpg';
+
+    const toNumber = (v: any) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
+
+    const price = toNumber(item.price ?? item.offerPrice ?? item.selling_price) ?? 0;
+
+    const originalPriceRaw = toNumber(item.originalPrice ?? item.mrp ?? item.regularPrice);
+    const originalPrice = originalPriceRaw && originalPriceRaw > 0 ? originalPriceRaw : undefined;
+
+    const weightRaw = item.weight ?? item.netWeight ?? item.packetSize;
+    const weight = typeof weightRaw === 'string' && weightRaw.trim()
+      ? weightRaw
+      : (Number.isFinite(Number(weightRaw)) ? `${weightRaw}` : '1kg');
+
+    const inStock = (item.inStock !== false) && (item.stock === undefined || item.stock > 0);
+
+    let discountRaw = toNumber(item.discount ?? item.discountPercentage);
+    if ((!discountRaw || !Number.isFinite(discountRaw)) && originalPrice && price > 0 && originalPrice > price) {
+      discountRaw = Math.round(((originalPrice - price) / originalPrice) * 100);
+    }
+    const discount = discountRaw && discountRaw > 0 ? discountRaw : undefined;
+
+    return { id, name, image, price, originalPrice, weight, inStock, discount };
+  };
+
   const specialOffers = Array.isArray(specialOffersData) && specialOffersData.length > 0
-    ? specialOffersData.slice(0, 7).map(item => ({
-        id: item.id?.toString() || item._id?.toString(),
-        name: item.name || item.title || 'Product',
-        image: item.imgs?.[0]?.img || item.image || '/placeholder.jpg',
-        price: item.price || 0,
-        originalPrice: item.originalPrice || item.mrp,
-        weight: item.weight || '1kg',
-        category: item.category || 'fish',
-        description: item.description || '',
-        inStock: item.inStock !== false,
-        discount: item.discount || item.discountPercentage || 0,
-      }))
-    : // Fallback to static products with discount > 15%
-      staticProducts.filter(p => p.discount && p.discount > 15).slice(0, 7);
+    ? specialOffersData.slice(0, 7).map(normalize)
+    : staticProducts
+        .filter(p => p.discount && p.discount > 15)
+        .slice(0, 7)
+        .map(p => ({
+          id: p.id,
+          name: typeof p.name === 'string' && p.name.trim() ? p.name : 'Product',
+          image: p.image || '/placeholder.jpg',
+          price: Number.isFinite(Number(p.price)) ? (p.price as number) : 0,
+          originalPrice: Number.isFinite(Number(p.originalPrice)) ? (p.originalPrice as number) : undefined,
+          weight: typeof p.weight === 'string' && p.weight.trim() ? p.weight : '1kg',
+          inStock: p.inStock !== false,
+          discount: Number.isFinite(Number(p.discount)) && Number(p.discount) > 0 ? (p.discount as number) : undefined,
+        }));
 
   return (
     <div className="px-4 mb-8">

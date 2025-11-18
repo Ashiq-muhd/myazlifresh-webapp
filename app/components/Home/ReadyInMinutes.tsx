@@ -4,13 +4,74 @@ import React from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import ProductCard from '@/components/Product/ProductCard';
-import { useGetReadyToEatQuery } from '@/store/apiSlice';
+import * as apiHooks from '@/store/apiSlice';
 import { products as staticProducts } from '@/data/products'; // Import static fallback data
 
 export default function ReadyInMinutes() {
   const router = useRouter();
-  const { data: readyToEatData = [], isLoading, isError } = useGetReadyToEatQuery();
+  const { data: readyToEatData = [], isLoading, isError } = apiHooks.useGetReadyToEatQuery();
+  // Load categories to resolve the exact "Instant Gravy & Masala" category id
+  const { data: categoriesData = [] } = apiHooks.useGetCategoriesQuery();
 
+  // Resolve the category id for "Instant Gravy & Masala" (matches name/slug loosely)
+  const instantCatId = React.useMemo(() => {
+    const dataArr = Array.isArray(categoriesData) ? categoriesData : [];
+    const normalize = (s?: string) => (s || '').toLowerCase().trim();
+    const targets = [
+      'instant gravy & masala',
+      'instant gravy and masala',
+      'instant gravy',
+      'gravy & masala',
+      'instant',
+    ];
+
+    const isMatch = (item: any) => {
+      const name = normalize(item?.name);
+      const slug = normalize(item?.slug);
+      return targets.some(t => name.includes(t) || (slug && slug.includes(t)));
+    };
+
+    for (const cat of dataArr) {
+      if (isMatch(cat)) return cat.id;
+      const subs = cat?.sub_categories || cat?.subCategories || cat?.sub_cat || [];
+      if (Array.isArray(subs)) {
+        const found = subs.find(isMatch);
+        if (found) return found.id;
+      }
+    }
+    return undefined;
+  }, [categoriesData]);
+
+  // Transform API data to match ProductCard expected structure
+  const readyMeals = React.useMemo(() => {
+    if (Array.isArray(readyToEatData) && readyToEatData.length > 0) {
+      // Extract products from the API response structure
+      const products = readyToEatData[0]?.ready_to_eat_products || [];
+      
+      return products.slice(0, 6).map(item => {
+        const productData = item.ready_to_eat_product_data;
+        return {
+          id: productData.id?.toString() || item.id?.toString(),
+          name: productData.name || 'Ready to Eat Product',
+          image: productData.imgs?.[0]?.img || '/placeholder.jpg',
+          price: productData.off_price || productData.price || 0,
+          originalPrice: productData.price || productData.off_price || 0,
+          weight: productData.weight || '1kg',
+          category: 'ready-to-eat',
+          description: `Ready to eat ${productData.name}`,
+          inStock: productData.stock_status !== false,
+          discount: productData.price && productData.off_price ? 
+            Math.round(((productData.price - productData.off_price) / productData.price) * 100) : 0,
+          stock: productData.stock || 0,
+        };
+      });
+    }
+    
+    // Fallback to static products - get products with specific IDs for instant items
+    return staticProducts.filter(p => p.id.includes('gravy') || p.name.toLowerCase().includes('instant')).slice(0, 6);
+  }, [readyToEatData]);
+
+  // Handle loading state
   if (isLoading) {
     return (
       <div className="px-4">
@@ -19,6 +80,7 @@ export default function ReadyInMinutes() {
     );
   }
 
+  // Handle error state
   if (isError) {
     return (
       <div className="px-4">
@@ -26,23 +88,6 @@ export default function ReadyInMinutes() {
       </div>
     );
   }
-
-  // Transform API data to match ProductCard expected structure
-  const readyMeals = Array.isArray(readyToEatData) && readyToEatData.length > 0
-    ? readyToEatData.slice(0, 6).map(item => ({
-        id: item.id?.toString() || item._id?.toString(),
-        name: item.name || item.title || 'Product',
-        image: item.imgs?.[0]?.img || item.image || '/placeholder.jpg',
-        price: item.price || 0,
-        originalPrice: item.originalPrice || item.mrp,
-        weight: item.weight || '1kg',
-        category: item.category || 'ready',
-        description: item.description || '',
-        inStock: item.inStock !== false,
-        discount: item.discount || item.discountPercentage || 0,
-      }))
-    : // Fallback to static products - get products with specific IDs for instant items
-      staticProducts.filter(p => p.id.includes('gravy') || p.name.toLowerCase().includes('instant')).slice(0, 6);
 
   return (
     <div className="px-4">
@@ -67,7 +112,7 @@ export default function ReadyInMinutes() {
         </div>
 
         <button 
-          onClick={() => router.push('/products?category=ready')}
+          onClick={() => router.push(`/products?category=${encodeURIComponent(instantCatId ?? 'instant')}`)}
           className="text-green-600 font-semibold text-sm border border-green-600 px-3 py-1 rounded-md"
         >
           See All
@@ -77,12 +122,12 @@ export default function ReadyInMinutes() {
       {/* Horizontal scroll section */}
       <div className="flex space-x-4 overflow-x-auto scrollbar-hide no-scrollbar">
         {/* Banner Image */}
-        <div className="min-w-[140px] h-[120px] rounded-xl overflow-hidden border shadow-sm">
+        <div className="min-w-[140px] h-[250px] rounded-xl overflow-hidden border shadow-sm">
           <Image
             src="/ready to cook image.png"
             alt="Ready to Cook Banner"
             width={140}
-            height={120}
+            height={250}
             className="w-full h-full object-cover"
           />
         </div>

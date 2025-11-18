@@ -1,17 +1,30 @@
 'use client'
 
 import React from 'react';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 
 export default function ReferralBanner() {
+  const router = useRouter();
+  // Correct public path (spaces URL-encoded)
+  const bannerSrc = '/banner/refer%20and%20earn.png';
+
   return (
     <div className="px-4">
-      <div className="rounded-xl bg-purple-100 p-4 flex justify-between items-center shadow">
-        <div>
-          <h2 className="text-purple-800 font-extrabold text-lg">₹200 FOR YOU<br />₹200 FOR THEM</h2>
-          <p className="text-sm text-purple-600">Refer your friends & enjoy wallet rewards together – it’s a win-win!</p>
-        </div>
-        <button className="bg-yellow-400 text-black px-3 py-1 rounded font-semibold text-sm">Refer Now</button>
-      </div>
+      <button
+        onClick={() => router.push('/refer')}
+        className="block w-full group focus:outline-none focus:ring-4 focus:ring-yellow-300 rounded-xl"
+        aria-label="Go to Refer & Earn"
+      >
+        <Image
+          src={bannerSrc}
+          alt="Refer & Earn - Invite your friends and earn ₹200 wallet credit"
+          width={740}
+          height={406}
+          priority
+          className="w-full h-auto rounded-xl shadow transition-transform duration-300 group-hover:scale-[1.02]"
+        />
+      </button>
     </div>
   );
 }

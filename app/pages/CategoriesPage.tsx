@@ -45,13 +45,18 @@ export default function CategoriesPage() {
           {categories?.map((category: any) => (
             <Link
               key={category.id}
-              href="/products"
+              href={`/products?category=${encodeURIComponent(category.id)}`}
               onClick={() => handleCategoryClick(category.id)}
               className="flex flex-col items-center text-center transition-all duration-200 hover:scale-105"
             >
               <div className="w-20 h-20 mb-3 rounded-full overflow-hidden shadow-sm">
                 <img
-                  src={category.img}
+                  src={
+                    category.img ||
+                    category.image ||
+                    category.imgs?.[0]?.img ||
+                    '/placeholder.jpg'
+                  }
                   alt={category.name}
                   className="w-full h-full object-cover"
                 />

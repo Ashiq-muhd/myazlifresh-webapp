@@ -70,7 +70,7 @@ export default function CategoryGrid() {
           {displayCategories.map((category) => (
             <Link
               key={category.id}
-              href="/products"
+              href={`/products?category=${encodeURIComponent(category.id)}`}
               onClick={() => handleCategoryClick(category.id)}
               className="flex flex-col items-center text-center transition-all duration-200 hover:scale-105"
             >

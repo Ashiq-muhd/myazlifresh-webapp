@@ -500,26 +500,28 @@ const additionalProducts: Product[] = [
       }
     ]
   },
- {
-  id: 'gravy01',
-  name: 'Butter Chicken Gravy',
-  image: 'https://images.pexels.com/photos/725991/pexels-photo-725991.jpeg?auto=compress&cs=tinysrgb&w=800',
-  weight: '250gm',
-  price: '149',
-  category: 'instant',
-  inStock: true
-},
-{
-  id: 'gravy02',
-  name: 'Paneer Tikka Masala',
-  image: 'https://images.pexels.com/photos/725991/pexels-photo-725991.jpeg?auto=compress&cs=tinysrgb&w=800',
-  weight: '250gm',
-  price: '139',
-  category: 'instant',
-  inStock: true
-}
+  {
+    id: 'gravy01',
+    name: 'Butter Chicken Gravy',
+    image: 'https://images.pexels.com/photos/725991/pexels-photo-725991.jpeg?auto=compress&cs=tinysrgb&w=800',
+    weight: '250gm',
+    price: 149,
+    category: 'instant',
+    inStock: true,
+    description: 'Rich butter chicken gravy ready to heat and serve.'
+  },
+  {
+    id: 'gravy02',
+    name: 'Paneer Tikka Masala',
+    image: 'https://images.pexels.com/photos/725991/pexels-photo-725991.jpeg?auto=compress&cs=tinysrgb&w=800',
+    weight: '250gm',
+    price: 139,
+    category: 'instant',
+    inStock: true,
+    description: 'Creamy paneer tikka masala gravy – just heat and enjoy.'
+  }
 
-// Add more gravy packs here...
+  // Add more gravy packs here...
 
 ];
 
